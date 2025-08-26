@@ -108,6 +108,15 @@ const LoginForm = () => {
                 Sign in as {role === "driver" ? "Driver" : "Fleet Manager"}
               </Button>
               
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground">
+                  Don't have an account?{' '}
+                  <Link to="/signup" className="text-primary hover:text-primary-hover font-medium">
+                    Sign up
+                  </Link>
+                </p>
+              </div>
+              
               <p className="text-xs text-muted-foreground text-center">
                 By signing in, you agree to our Terms of Service and Privacy Policy
               </p>
