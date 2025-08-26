@@ -28,7 +28,8 @@ export default {
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))',
-					hover: 'hsl(var(--primary-hover))'
+					hover: 'hsl(var(--primary-hover))',
+					glow: 'hsl(var(--primary-glow))'
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',
@@ -53,7 +54,8 @@ export default {
 				},
 				accent: {
 					DEFAULT: 'hsl(var(--accent))',
-					foreground: 'hsl(var(--accent-foreground))'
+					foreground: 'hsl(var(--accent-foreground))',
+					glow: 'hsl(var(--accent-glow))'
 				},
 				card: {
 					DEFAULT: 'hsl(var(--card))',
@@ -75,7 +77,9 @@ export default {
 				'sm': 'var(--shadow-sm)',
 				'DEFAULT': 'var(--shadow)',
 				'md': 'var(--shadow-md)',
-				'lg': 'var(--shadow-lg)'
+				'lg': 'var(--shadow-lg)',
+				'glow': 'var(--shadow-glow)',
+				'accent-glow': 'var(--shadow-accent-glow)'
 			},
 			transitionProperty: {
 				'default': 'var(--transition)',
