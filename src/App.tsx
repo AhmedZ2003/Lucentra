@@ -8,9 +8,9 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import LoginForm from "./components/auth/LoginForm";
 import SignupForm from "./components/auth/SignupForm";
-import DriverDashboard from "./components/driver/DriverDashboard";
-import FleetManagerDashboard from "./components/manager/FleetManagerDashboard";
-import DriverDetail from "./components/manager/DriverDetail";
+import DriverDashboardPage from "./pages/DriverDashboardPage";
+import FleetManagerDashboardPage from "./pages/FleetManagerDashboardPage";
+import DriverDetailPage from "./pages/DriverDetailPage";
 
 const queryClient = new QueryClient();
 
@@ -25,9 +25,9 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginForm />} />
             <Route path="/signup" element={<SignupForm />} />
-            <Route path="/driver/dashboard" element={<DriverDashboard />} />
-            <Route path="/manager/dashboard" element={<FleetManagerDashboard />} />
-            <Route path="/manager/driver/:driverId" element={<DriverDetail />} />
+            <Route path="/driver/dashboard" element={<DriverDashboardPage />} />
+            <Route path="/manager/dashboard" element={<FleetManagerDashboardPage />} />
+            <Route path="/manager/driver/:driverId" element={<DriverDetailPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
