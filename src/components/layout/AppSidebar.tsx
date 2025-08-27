@@ -27,13 +27,25 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 
-const navigationItems = [
-  { title: "Overview", url: "/", icon: Home },
-  { title: "Fleet Management", url: "/manager/dashboard", icon: Car },
-  { title: "Driver Analytics", url: "/driver/dashboard", icon: Users },
-  { title: "Reports", url: "/reports", icon: FileText },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-];
+const getNavigationItems = (userType: 'driver' | 'manager') => {
+  const commonItems = [
+    { title: "Home", url: "/", icon: Home },
+  ];
+  
+  if (userType === 'driver') {
+    return [
+      ...commonItems,
+      { title: "Driver Dashboard", url: "/driver/dashboard", icon: Car },
+      { title: "Analytics", url: "/analytics", icon: BarChart3 },
+    ];
+  } else {
+    return [
+      ...commonItems,
+      { title: "Fleet Management", url: "/manager/dashboard", icon: Car },
+      { title: "Driver Analytics", url: "/driver/dashboard", icon: Users },
+    ];
+  }
+};
 
 const bottomItems = [
   { title: "Settings", url: "/settings", icon: Settings },
@@ -47,6 +59,10 @@ export function AppSidebar() {
   const currentPath = location.pathname;
   
   const collapsed = state === "collapsed";
+  
+  // Determine user type based on current path
+  const userType: 'driver' | 'manager' = currentPath.startsWith('/driver') ? 'driver' : 'manager';
+  const navigationItems = getNavigationItems(userType);
 
   const isActive = (path: string) => {
     if (path === "/") {
