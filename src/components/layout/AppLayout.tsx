@@ -16,10 +16,8 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex-1 flex flex-col">
           {/* Header with hamburger menu */}
           <header className="h-16 border-b border-border bg-card flex items-center px-4">
-            <SidebarTrigger asChild>
-              <Button variant="ghost" size="sm" className="p-2">
-                <Menu className="h-4 w-4" />
-              </Button>
+            <SidebarTrigger className="p-2">
+              <Menu className="h-4 w-4" />
             </SidebarTrigger>
           </header>
 

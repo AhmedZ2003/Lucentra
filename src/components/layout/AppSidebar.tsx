@@ -93,11 +93,7 @@ export function AppSidebar() {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={getNavClassName(item.url)}
-                      title={collapsed ? item.title : undefined}
-                    >
+                    <NavLink to={item.url} className={getNavClassName(item.url)} title={collapsed ? item.title : undefined}>
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span className="ml-3">{item.title}</span>}
                     </NavLink>
@@ -114,11 +110,7 @@ export function AppSidebar() {
               {bottomItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={getNavClassName(item.url)}
-                      title={collapsed ? item.title : undefined}
-                    >
+                    <NavLink to={item.url} className={getNavClassName(item.url)} title={collapsed ? item.title : undefined}>
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span className="ml-3">{item.title}</span>}
                     </NavLink>
