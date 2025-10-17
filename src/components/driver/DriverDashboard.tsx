@@ -71,18 +71,6 @@ const DriverDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Videos Uploaded</p>
-                  <p className="text-2xl font-bold text-card-foreground">12</p>
-                </div>
-                <Upload className="h-8 w-8 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card hover:bg-card-hover transition-colors">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
                   <p className="text-sm text-muted-foreground">Avg Speed</p>
                   <p className="text-2xl font-bold text-card-foreground">45 mph</p>
                 </div>
@@ -95,10 +83,10 @@ const DriverDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Drive Time</p>
-                  <p className="text-2xl font-bold text-card-foreground">2.5h</p>
+                  <p className="text-sm text-muted-foreground">Max Speed</p>
+                  <p className="text-2xl font-bold text-card-foreground">70 mph</p>
                 </div>
-                <Clock className="h-8 w-8 text-primary" />
+                <Activity className="h-8 w-8 text-primary" />
               </div>
             </CardContent>
           </Card>
@@ -107,10 +95,22 @@ const DriverDashboard = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Safety Score</p>
-                  <p className="text-2xl font-bold text-card-foreground">85%</p>
+                  <p className="text-sm text-muted-foreground">Min Speed</p>
+                  <p className="text-2xl font-bold text-card-foreground">0 mph</p>
                 </div>
-                <CheckCircle className="h-8 w-8 text-success" />
+                <Activity className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card hover:bg-card-hover transition-colors">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Most Triggered Event</p>
+                  <p className="text-2xl font-bold text-card-foreground">Hard Braking</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-primary" />
               </div>
             </CardContent>
           </Card>

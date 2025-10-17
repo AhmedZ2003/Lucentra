@@ -5,7 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const SignupForm = () => {
   const [role, setRole] = useState<'driver' | 'manager'>('driver');
@@ -15,15 +17,54 @@ const SignupForm = () => {
     password: '',
     confirmPassword: ''
   });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match');
+      toast({
+        title: "Error",
+        description: "Passwords do not match",
+        variant: "destructive",
+      });
       return;
     }
-    console.log('Signup attempt:', { ...formData, role });
-    // Handle signup logic here
+
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+            role: role,
+          },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Account created!",
+        description: "You can now sign in with your credentials.",
+      });
+
+      navigate("/login");
+    } catch (error: any) {
+      toast({
+        title: "Signup failed",
+        description: error.message || "Unable to create account",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -132,8 +173,9 @@ const SignupForm = () => {
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-primary hover:opacity-90 text-white font-medium"
+                disabled={loading}
               >
-                Create {role === 'driver' ? 'Driver' : 'Fleet Manager'} Account
+                {loading ? "Creating account..." : `Create ${role === 'driver' ? 'Driver' : 'Fleet Manager'} Account`}
               </Button>
             </form>
 

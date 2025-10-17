@@ -5,17 +5,59 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BarChart3, ArrowLeft } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const LoginForm = () => {
   const [role, setRole] = useState("driver");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // This will be handled by Supabase authentication
-    console.log("Login attempt:", { email, role });
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.user) {
+        // Check user role
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", data.user.id)
+          .single();
+
+        toast({
+          title: "Login successful",
+          description: "Welcome back!",
+        });
+
+        // Redirect based on role
+        if (roleData?.role === "driver") {
+          navigate("/driver/dashboard");
+        } else {
+          navigate("/manager/dashboard");
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid credentials",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -104,8 +146,9 @@ const LoginForm = () => {
                 type="submit" 
                 className="w-full bg-primary hover:bg-primary-hover text-primary-foreground"
                 size="lg"
+                disabled={loading}
               >
-                Sign in as {role === "driver" ? "Driver" : "Fleet Manager"}
+                {loading ? "Signing in..." : `Sign in as ${role === "driver" ? "Driver" : "Fleet Manager"}`}
               </Button>
               
               <div className="text-center">
