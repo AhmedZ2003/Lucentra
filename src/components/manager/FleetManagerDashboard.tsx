@@ -219,13 +219,179 @@ const DownloadSpeedModal = ({
   );
 };
 
+// ==========================
+// Download Event Data Modal
+// ==========================
+const DownloadEventsModal = ({
+  eventData,
+  isOpen,
+  onClose,
+  driverName,
+}: {
+  eventData: { event: string; time: number; duration: number; severity: "low" | "medium" | "high" }[];
+  isOpen: boolean;
+  onClose: () => void;
+  driverName: string;
+}) => {
+  const [downloadOption, setDownloadOption] = useState<"all" | "event" | "severity">("all");
+  const [selectedEvent, setSelectedEvent] = useState<string>("all");
+  const [selectedSeverity, setSelectedSeverity] = useState<"all" | "low" | "medium" | "high">("all");
+
+  const uniqueEvents = Array.from(new Set(eventData.map((e) => e.event))).filter(Boolean);
+
+  const filterData = () => {
+    switch (downloadOption) {
+      case "event":
+        return selectedEvent === "all"
+          ? eventData
+          : eventData.filter((e) => e.event === selectedEvent);
+      case "severity":
+        return selectedSeverity === "all"
+          ? eventData
+          : eventData.filter((e) => e.severity === selectedSeverity);
+      default:
+        return eventData;
+    }
+  };
+
+  const downloadAsCSV = () => {
+    const data = filterData();
+    const csvContent = [
+      "event,start_frame,duration_frames,severity",
+      ...data.map((e) => `${e.event},${e.time},${e.duration},${e.severity}`),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${driverName}_danger_events_${downloadOption}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsJSON = () => {
+    const data = filterData();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${driverName}_danger_events_${downloadOption}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadAsTXT = () => {
+    const data = filterData();
+    const txtContent = data
+      .map((e) => `event=${e.event}, start_frame=${e.time}, duration_frames=${e.duration}, severity=${e.severity}`)
+      .join("\n");
+
+    const blob = new Blob([txtContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${driverName}_danger_events_${downloadOption}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <Card className="w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Download className="h-5 w-5 text-primary" />
+            Download Event Data
+          </CardTitle>
+          <CardDescription>Download {driverName}'s event data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Download Option</label>
+            <select
+              value={downloadOption}
+              onChange={(e) => setDownloadOption(e.target.value as any)}
+              className="w-full px-3 py-2 bg-background border border-border rounded-md"
+            >
+              <option value="all">All Events</option>
+              <option value="event">Specific Event</option>
+              <option value="severity">By Severity</option>
+            </select>
+          </div>
+
+          {downloadOption === "event" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Event</label>
+              <select
+                value={selectedEvent}
+                onChange={(e) => setSelectedEvent(e.target.value)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-md"
+              >
+                <option value="all">All Events</option>
+                {uniqueEvents.map((eventName) => (
+                  <option key={eventName} value={eventName}>
+                    {eventName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {downloadOption === "severity" && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Severity</label>
+              <select
+                value={selectedSeverity}
+                onChange={(e) => setSelectedSeverity(e.target.value as any)}
+                className="w-full px-3 py-2 bg-background border border-border rounded-md"
+              >
+                <option value="all">All Severities</option>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+          )}
+
+          <div className="text-sm text-muted-foreground">
+            {filterData().length} event(s) will be downloaded
+          </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Download
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              <DropdownMenuItem onClick={downloadAsCSV}>Download as CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={downloadAsJSON}>Download as JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={downloadAsTXT}>Download as TXT</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <Button variant="outline" onClick={onClose} className="w-full">
+            Cancel
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 const FleetManagerDashboard = () => {
   const [drivers, setDrivers] = useState<DriverRecord[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<DriverRecord | null>(null);
   const [driverSpeedData, setDriverSpeedData] = useState<{ time: number; speed: number }[]>([]);
   const [currentSpeed, setCurrentSpeed] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);            //States to download Speed Data
+  const [isEventDownloadModalOpen, setIsEventDownloadModalOpen] = useState(false);  //States to download Event Data
   const [videoFPS, setVideoFPS] = useState<number>(30); // Video FPS
   const [driverDangerEvents, setDriverDangerEvents] = useState<
     { event: string; time: number; duration: number; severity: "low" | "medium" | "high" }[]
@@ -276,7 +442,52 @@ const FleetManagerDashboard = () => {
     fetchDrivers();
   }, []);
 
-  // Fetch the selected driver's speed data
+  // Fetch the selected driver's speed and event data
+  // const fetchDriverSpeedData = async (driverId: string) => {
+  //     try {
+  //       setLoading(true);
+  //       const driverRef = doc(db, "driverSpeeds", driverId);
+  //       const driverDoc = await getDoc(driverRef);
+
+  //       if (driverDoc.exists()) {
+  //         const data = driverDoc.data();
+
+  //         if (data && Array.isArray(data.speedData)) {
+  //           const speedData = data.speedData.map((entry: { frame: number; speed: number }) => ({
+  //             time: entry.frame,
+  //             speed: entry.speed,
+  //           }));
+  //           setDriverSpeedData(speedData);
+  //         } else {
+  //           setDriverSpeedData([]);
+  //           console.error("No speed data found for this driver.");
+  //         }
+
+  //         if (data && Array.isArray(data.dangerEvents)) {
+  //           const cleanedEvents = data.dangerEvents.filter(
+  //             (item: any) =>
+  //               item &&
+  //               item.event &&
+  //               !["none", "null", "undefined"].includes(String(item.event).trim().toLowerCase())
+  //           );
+  //           setDriverDangerEvents(cleanedEvents);
+  //         } else {
+  //           setDriverDangerEvents([]);
+  //         }
+  //       } else {
+  //         setDriverSpeedData([]);
+  //         setDriverDangerEvents([]);
+  //         console.error("Driver not found or has no speed data.");
+  //       }
+  //     } catch (err) {
+  //       console.error("Error fetching driver speed data:", err);
+  //       setDriverSpeedData([]);
+  //       setDriverDangerEvents([]);
+  //     } finally {
+  //       setLoading(false);
+  //     }
+  //   };
+
   const fetchDriverSpeedData = async (driverId: string) => {
       try {
         setLoading(true);
@@ -443,6 +654,12 @@ const FleetManagerDashboard = () => {
         onClose={() => setIsDownloadModalOpen(false)}
         driverName={selectedDriver?.name || "driver"}
       />
+      <DownloadEventsModal
+      eventData={driverDangerEvents}
+      isOpen={isEventDownloadModalOpen}
+      onClose={() => setIsEventDownloadModalOpen(false)}
+      driverName={selectedDriver?.name || "driver"}
+    />
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -588,21 +805,33 @@ const FleetManagerDashboard = () => {
 
             {/* Event Triggers Chart */}
       <Card className="bg-card border-border">
-            <CardHeader>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
               <CardTitle className="flex items-center gap-2 text-card-foreground">
                 <AlertTriangle className="h-5 w-5 text-primary" />
                 Event Triggers
               </CardTitle>
               <CardDescription>Detected danger events across the video timeline</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EventTriggersChart
-                  data={driverDangerEvents}
-                  fps={videoFPS || 30}
-                  framesToShow={Math.max(driverSpeedData.length, 1)}
-                />
-            </CardContent>
-          </Card>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setIsEventDownloadModalOpen(true)}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Download Events
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <EventTriggersChart
+            data={driverDangerEvents}
+            fps={videoFPS || 30}
+            framesToShow={Math.max(driverSpeedData.length, 1)}
+          />
+        </CardContent>
+      </Card>
           </div>
         )}
         {/* Display Driver Details and Speed Chart */}
