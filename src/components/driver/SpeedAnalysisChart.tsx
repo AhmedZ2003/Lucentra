@@ -21,14 +21,14 @@ const SpeedAnalysisChart = ({ data }: SpeedAnalysisChartProps) => {
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            label={{ value: 'Time (minutes)', position: 'insideBottom', offset: -5 }}
+            label={{ value: 'Frames', position: 'insideBottom', offset: -5 }}
           />
           <YAxis 
             stroke="hsl(var(--muted-foreground))"
             fontSize={12}
             tickLine={false}
             axisLine={false}
-            label={{ value: 'Speed (mph)', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Speed (ms)', angle: -90, position: 'insideLeft' }}
           />
           <Tooltip 
             content={({ active, payload, label }) => {
@@ -36,10 +36,10 @@ const SpeedAnalysisChart = ({ data }: SpeedAnalysisChartProps) => {
                 return (
                   <div className="bg-card border border-border rounded-lg p-3 shadow-md">
                     <p className="text-sm text-card-foreground">
-                      Time: {label} minutes
+                      Frame: {label}
                     </p>
                     <p className="text-sm font-semibold text-primary">
-                      Speed: {payload[0].value} mph
+                      Speed: {payload[0].value} ms
                     </p>
                   </div>
                 );
@@ -51,9 +51,9 @@ const SpeedAnalysisChart = ({ data }: SpeedAnalysisChartProps) => {
             type="monotone" 
             dataKey="speed" 
             stroke="hsl(var(--primary))" 
-            strokeWidth={2}
-            dot={{ fill: 'hsl(var(--primary))', strokeWidth: 2, r: 4 }}
-            activeDot={{ r: 6, fill: 'hsl(var(--primary))' }}
+            strokeWidth={3}
+            dot={false}
+            activeDot={false}
           />
         </LineChart>
       </ResponsiveContainer>

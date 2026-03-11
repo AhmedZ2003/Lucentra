@@ -1,0 +1,30 @@
+# # ConvLSTM Model Configuration
+# model:
+#   backbone: 'efficientnetv2_rw_t'
+#   pretrained: true
+#   convlstm_hidden_dim: [64, 32]
+#   dropout: 0.5
+
+# CNN + LSTM Model Configuration
+model:
+  backbone: 'efficientnetv2_rw_t'
+  pretrained: true
+  lstm_hidden_dim: 128  # Hidden dimension for LSTM
+  lstm_layers: 2        # Number of LSTM layers
+  dropout: 0.5
+
+# Image preprocessing
+preprocessing:
+  image_size: [224, 224]
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+
+# Paths
+paths:
+  checkpoint: 'best_cnn_lstm_speed_model.pth'
+  # checkpoint: 'best_convlstm_speed_model.pth'
+  video: 'video_1.mp4'
+
+# Device
+device: 'cuda'  # Options: 'cuda', 'cpu', 'auto'

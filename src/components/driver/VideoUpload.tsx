@@ -3,13 +3,14 @@ import { Upload, FileVideo, X } from "lucide-react";
 import { useState, useRef } from "react";
 
 interface VideoUploadProps {
-  onUpload: () => void;
+  onUpload: (file: File) => void;
 }
 
 const VideoUpload = ({ onUpload }: VideoUploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -43,7 +44,7 @@ const VideoUpload = ({ onUpload }: VideoUploadProps) => {
 
   const handleUpload = () => {
     if (selectedFile) {
-      onUpload();
+      onUpload(selectedFile); // ✅ Pass the file up
     }
   };
 

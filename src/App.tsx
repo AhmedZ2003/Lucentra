@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
@@ -26,10 +26,22 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<LoginForm />} />
             <Route path="/signup" element={<SignupForm />} />
-            <Route path="/driver/dashboard" element={<ProtectedRoute><DriverDashboardPage /></ProtectedRoute>} />
-            <Route path="/manager/dashboard" element={<ProtectedRoute><FleetManagerDashboardPage /></ProtectedRoute>} />
-            <Route path="/manager/driver/:driverId" element={<ProtectedRoute><DriverDetailPage /></ProtectedRoute>} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+            {/* Protected routes with allowedRoles */}
+            <Route 
+              path="/driver/dashboard" 
+              element={<ProtectedRoute allowedRoles={["driver"]}><DriverDashboardPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/manager/dashboard" 
+              element={<ProtectedRoute allowedRoles={["manager"]}><FleetManagerDashboardPage /></ProtectedRoute>} 
+            />
+            <Route 
+              path="/manager/driver/:driverId" 
+              element={<ProtectedRoute allowedRoles={["manager"]}><DriverDetailPage /></ProtectedRoute>} 
+            />
+            
+            {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -6,8 +6,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BarChart3, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/integrations/FireBase/firebase"; // import firebase auth
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { db } from "@/integrations/FireBase/firebase"; // Ensure Firestore is imported
 
 const LoginForm = () => {
   const [role, setRole] = useState("driver");
@@ -17,58 +20,41 @@ const LoginForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .single();
-        
-        if (roleData?.role === "driver") {
-          navigate("/driver/dashboard");
-        } else {
-          navigate("/manager/dashboard");
-        }
-      }
-    };
-    checkUser();
-  }, [navigate]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      if (error) throw error;
-
-      if (data.user) {
-        // Check user role
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", data.user.id)
-          .single();
+      // Fetch the user's role from Firestore (or any database where role is stored)
+      const roleRef = doc(db, "users", user.uid); // Assuming the user's role is stored in Firestore
+      const roleDoc = await getDoc(roleRef);
+      
+      if (roleDoc.exists()) {
+        const userRole = roleDoc.data()?.role;
+        console.log("User role fetched:", userRole); // Debugging statement
 
         toast({
           title: "Login successful",
           description: "Welcome back!",
         });
 
-        // Redirect based on role
-        if (roleData?.role === "driver") {
+        // Redirect based on user role
+        if (userRole === "driver") {
+          console.log("Redirecting to driver dashboard..."); // Debugging statement
           navigate("/driver/dashboard");
-        } else {
+        } else if (userRole === "manager") {
+          console.log("Redirecting to manager dashboard..."); // Debugging statement
           navigate("/manager/dashboard");
         }
+      } else {
+        toast({
+          title: "Role not found",
+          description: "Unable to retrieve your role from the database.",
+          variant: "destructive",
+        });
       }
     } catch (error: any) {
       toast({
@@ -84,7 +70,6 @@ const LoginForm = () => {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Header */}
         <div className="text-center mb-8">
           <Link to="/" className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -94,7 +79,7 @@ const LoginForm = () => {
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <BarChart3 className="h-6 w-6 text-primary-foreground" />
             </div>
-            <span className="text-2xl font-bold text-foreground">FleetScope</span>
+            <span className="text-2xl font-bold text-foreground">Lucentra</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground mb-2">Welcome Back</h1>
           <p className="text-muted-foreground">Sign in to access your dashboard</p>

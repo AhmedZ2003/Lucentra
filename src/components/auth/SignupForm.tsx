@@ -6,8 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { auth } from "@/integrations/FireBase/firebase"; // import firebase auth
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/integrations/FireBase/firebase"; // Ensure Firestore is imported
+
 
 const SignupForm = () => {
   const [role, setRole] = useState<'driver' | 'manager'>('driver');
@@ -21,30 +25,9 @@ const SignupForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Redirect if already logged in
-  useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .single();
-        
-        if (roleData?.role === "driver") {
-          navigate("/driver/dashboard");
-        } else {
-          navigate("/manager/dashboard");
-        }
-      }
-    };
-    checkUser();
-  }, [navigate]);
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (formData.password !== formData.confirmPassword) {
       toast({
         title: "Error",
@@ -57,19 +40,17 @@ const SignupForm = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          data: {
-            full_name: formData.name,
-            role: role,
-          },
-          emailRedirectTo: `${window.location.origin}/`,
-        },
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      // Update profile with the name
+      await updateProfile(user, {
+        displayName: formData.name,
       });
 
-      if (error) throw error;
+       // Save the role to Firestore
+      const userRef = doc(db, "users", user.uid);
+      await setDoc(userRef, { role: role }, { merge: true });
 
       toast({
         title: "Account created!",
@@ -109,7 +90,7 @@ const SignupForm = () => {
               <div className="w-6 h-6 bg-white rounded-md"></div>
             </div>
             <h1 className="text-2xl font-bold text-foreground">Create Account</h1>
-            <p className="text-muted-foreground">Join FleetTracker to get started</p>
+            <p className="text-muted-foreground">Join Lucentra to get started</p>
           </div>
         </div>
 

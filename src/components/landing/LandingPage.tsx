@@ -2,8 +2,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ArrowRight, Shield, BarChart3, Users, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import DriverDashboard from "@/components/driver/DriverDashboard";
 
 const LandingPage = () => {
+  const { user, loading, profile, signOut } = useAuth();
+
+  // decide the right dashboard
+  const dashboardPath =
+    profile?.role === "manager" ? "/manager/dashboard" : "/driver/dashboard";
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation */}
@@ -14,18 +22,37 @@ const LandingPage = () => {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold text-foreground">FleetScope</span>
+              <span className="text-xl font-bold text-foreground">Lucentra</span>
             </div>
+
+            {/* Dynamic Auth Buttons */}
             <div className="flex items-center space-x-4">
-              <Link to="/login">
-                <Button variant="ghost">Sign In</Button>
-              </Link>
-              <Link to="/login">
-                <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
-                  Get Started
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-              </Link>
+              { user ? (
+                <>
+                  <Link to={dashboardPath}>
+                    <Button variant="ghost">Dashboard</Button>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    onClick={signOut}
+                    className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                  >
+                    Sign Out
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link to="/login">
+                    <Button variant="ghost">Sign In</Button>
+                  </Link>
+                  <Link to="/login">
+                    <Button className="bg-primary hover:bg-primary-hover text-primary-foreground">
+                      Get Started
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -44,17 +71,19 @@ const LandingPage = () => {
             comprehensive insights into driving behavior, safety, and performance metrics.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/login">
+            <Link to={user ? "/driver/dashboard" : "/login"}>
               <Button size="lg" className="bg-primary hover:bg-primary-hover text-primary-foreground px-8">
-                Start Managing Fleet
+                {user ? "Go to Dashboard" : "Start Managing Fleet"}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <Link to="/login">
-              <Button size="lg" variant="outline" className="px-8">
-                Driver Access
-              </Button>
-            </Link>
+            {!user && (
+              <Link to="/login">
+                <Button size="lg" variant="outline" className="px-8">
+                  Driver Access
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -71,7 +100,7 @@ const LandingPage = () => {
               your fleet efficiently and safely.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             <Card className="p-6 hover:shadow-md transition-all duration-200 bg-card hover:bg-card-hover">
               <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
@@ -123,12 +152,12 @@ const LandingPage = () => {
             Ready to Transform Your Fleet Management?
           </h2>
           <p className="text-muted-foreground mb-8 text-lg">
-            Join fleet managers and drivers who trust FleetScope for comprehensive 
+            Join fleet managers and drivers who trust Lucentra for comprehensive 
             vehicle monitoring and analysis.
           </p>
-          <Link to="/login">
+          <Link to={user ? "/driver/dashboard" : "/login"}>
             <Button size="lg" className="bg-primary hover:bg-primary-hover text-primary-foreground px-8">
-              Get Started Today
+              {user ? "Go to Dashboard" : "Get Started Today"}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
@@ -142,10 +171,10 @@ const LandingPage = () => {
             <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">FleetScope</span>
+            <span className="font-semibold text-foreground">Lucentra</span>
           </div>
           <p className="text-muted-foreground text-sm">
-            © 2024 FleetScope. Modern fleet management solutions.
+            © 2024 Lucentra. Modern fleet management solutions.
           </p>
         </div>
       </footer>

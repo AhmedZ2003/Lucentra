@@ -97,7 +97,7 @@ export function AppSidebar() {
             <BarChart3 className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-foreground">FleetScope</span>
+            <span className="text-lg font-bold text-foreground">Lucentra</span>
           )}
         </div>
       </SidebarHeader>
