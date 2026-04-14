@@ -7,7 +7,7 @@ import { BarChart3, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { auth } from "@/integrations/FireBase/firebase"; // import firebase auth
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { useToast } from "@/hooks/use-toast";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
 import { db } from "@/integrations/FireBase/firebase"; // Ensure Firestore is imported
@@ -32,14 +32,46 @@ const LoginForm = () => {
       const roleRef = doc(db, "users", user.uid); // Assuming the user's role is stored in Firestore
       const roleDoc = await getDoc(roleRef);
       
-      if (roleDoc.exists()) {
-        const userRole = roleDoc.data()?.role;
-        console.log("User role fetched:", userRole); // Debugging statement
+      // if (roleDoc.exists()) {
+      //   const userRole = roleDoc.data()?.role;
+      //   console.log("User role fetched:", userRole); // Debugging statement
 
+      //   toast({
+      //     title: "Login successful",
+      //     description: "Welcome back!",
+      //   });
+
+      if (!roleDoc.exists()) {
+        await signOut(auth);
         toast({
-          title: "Login successful",
-          description: "Welcome back!",
+          title: "Role not found",
+          description: "Unable to retrieve your role from the database.",
+          variant: "destructive",
         });
+        return;
+      }
+      const userRole = roleDoc.data()?.role;
+      console.log("Selected role:", role);
+      console.log("User role fetched:", userRole);
+
+      if (userRole !== role) {
+        await signOut(auth);
+        toast({
+          title: "Access denied",
+          description:
+            role === "driver"
+              ? "Fleet managers cannot log in from the Driver portal."
+              : "Drivers cannot log in from the Fleet Manager portal.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Login successful",
+        description: "Welcome back!",
+      });
+
 
         // Redirect based on user role
         if (userRole === "driver") {
@@ -49,7 +81,7 @@ const LoginForm = () => {
           console.log("Redirecting to manager dashboard..."); // Debugging statement
           navigate("/manager/dashboard");
         }
-      } else {
+       else {
         toast({
           title: "Role not found",
           description: "Unable to retrieve your role from the database.",

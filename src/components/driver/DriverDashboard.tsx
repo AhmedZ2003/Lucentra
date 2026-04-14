@@ -769,7 +769,13 @@ const DriverDashboard = () => {
 
     //   const dangerResult = await dangerResponse.json();
 
-      const dpflowPromise = fetch("http://localhost:8000/api/analyze-video", {
+      // const dpflowPromise = fetch("http://localhost:8000/api/analyze-video", {
+      //   method: "POST",
+      //   body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
+      //   headers: { "Content-Type": "application/json" },
+      // });
+
+      const speedPromise = fetch("http://localhost:8000/api/analyze-video", {
         method: "POST",
         body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
         headers: { "Content-Type": "application/json" },
@@ -783,22 +789,22 @@ const DriverDashboard = () => {
         headers: { "Content-Type": "application/json" },
       });
 
-      const [dpflowResponse, dangerResponse] = await Promise.all([dpflowPromise, dangerPromise]);
+      const [speedResponse, dangerResponse] = await Promise.all([speedPromise, dangerPromise]);
 
-      if (!dpflowResponse.ok) {
-        throw new Error(`DPFlow server error: ${dpflowResponse.statusText}`);
+      if (!speedResponse.ok) {
+        throw new Error(`Speed server error: ${speedResponse.statusText}`);
       }
 
       if (!dangerResponse.ok) {
         throw new Error(`Danger detection server error: ${dangerResponse.statusText}`);
       }
 
-      const [dpflowResult, dangerResult] = await Promise.all([
-        dpflowResponse.json(),
+      const [speedResult, dangerResult] = await Promise.all([
+        speedResponse.json(),
         dangerResponse.json(),
       ]);
 
-      const chartData = (dpflowResult.speeds as number[]).map((speed, index) => ({
+      const chartData = (speedResult.speeds as number[]).map((speed, index) => ({
         frame: index,
         speed: Number(Math.max(0, Number.isFinite(speed) ? speed : 0).toFixed(2)),
       }));
