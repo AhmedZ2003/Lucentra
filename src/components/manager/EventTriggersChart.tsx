@@ -32,25 +32,10 @@ const EventTriggersChart = ({
   framesToShow = DEFAULT_FRAMES,
   tickStep = 2,
 }: EventTriggersChartProps) => {
-  // Demo events
-  const demoEvents: EventData[] = [
-    { event: "Overspeeding",            time: 0.10, duration: 2.0, severity: "high" },
-    { event: "Pedestrian Endangerment", time: 0.35, duration: 1.5, severity: "medium" },
-    { event: "Close Following",         time: 0.55, duration: 1.2, severity: "low" },
-  ];
-  const events = data && data.length ? data : demoEvents;
 
-  // const EVENT_COLOR: Record<string, string> = {
-  //   "Overspeeding": "#60A5FA",
-  //   "Pedestrian Endangerment": "#F59E0B",
-  //   "Close Following": "#10B981",
-  // };
-  // const SEVERITY_COLOR: Record<EventData["severity"], string> = {
-  //   high: "#ef4444",
-  //   medium: "#f59e0b",
-  //   low: "#10b981",
-  // };
-
+  // If no events found, return empty chart with just axes
+  const events = Array.isArray(data) ? data : [];
+  
     const EVENT_PALETTE = [
     "#3b82f6", // blue
     "#ef4444", // red
@@ -134,31 +119,21 @@ const EventTriggersChart = ({
 
   const { frames: chartData, uniqueEvents } = createFixedTimeline();
 
-  // const colorForEvent = (ev: string) => {
-  //   if (EVENT_COLOR[ev]) return EVENT_COLOR[ev];
-  //   const rank = { low: 0, medium: 1, high: 2 } as const;
-  //   let strongest: EventData["severity"] | null = null;
-  //   events.filter((d) => d.event === ev).forEach((d) => {
-  //     if (!strongest || rank[d.severity] > rank[strongest]) strongest = d.severity;
-  //   });
-  //   return strongest ? SEVERITY_COLOR[strongest] : "#64748b";
-  // };
+  const colorForEvent = (ev: string, index: number) => {
+  const paletteColor = EVENT_PALETTE[index % EVENT_PALETTE.length];
 
-    const colorForEvent = (ev: string, index: number) => {
-    const paletteColor = EVENT_PALETTE[index % EVENT_PALETTE.length];
+  // If you want special named events to always keep fixed colors, define them here
+  const fixedEventColors: Record<string, string> = {
+    "Pedestrian Endangerment": "#ef4444",
+    "Trailgating": "#3b82f6",
+    "Overspeeding": "#f59e0b",
+    "Close Following": "#10b981",
+  };
 
-    // If you want special named events to always keep fixed colors, define them here
-    const fixedEventColors: Record<string, string> = {
-      "Pedestrian Endangerment": "#ef4444",
-      "Trailgating": "#3b82f6",
-      "Overspeeding": "#f59e0b",
-      "Close Following": "#10b981",
-    };
+    if (fixedEventColors[ev]) return fixedEventColors[ev];
 
-      if (fixedEventColors[ev]) return fixedEventColors[ev];
-
-      return paletteColor;
-    };
+    return paletteColor;
+  };
 
   // --- NEW: explicit even-number ticks: 0,2,4,6,... ---
   const xTicks = Array.from(
@@ -212,7 +187,7 @@ const EventTriggersChart = ({
                 return null;
               }}
             />
-            <Legend />
+            {uniqueEvents.length > 0 && <Legend />}
             
             {uniqueEvents.map((ev,index) => (
               <Line

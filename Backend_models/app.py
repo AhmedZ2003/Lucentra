@@ -23,7 +23,7 @@ app.add_middleware(
 )
 
 WEIGHTS_PATH = r"E:\FYP_2\Lucentra_Final\Backend_models\weights"
-MODEL_NAME = "fastflownet"
+MODEL_NAME = "fastflownet"  # fastflownet or dpflow
 
 class AnalyzeVideoRequest(BaseModel):
     videoUrl: HttpUrl
@@ -71,8 +71,10 @@ def analyze_video(payload: AnalyzeVideoRequest):
             alpha=0.3,
             threshold=2.0,
             sigma=1.0,
-            smoothing_type="ema_gaussian",
+            smoothing_type="butterworth",
             use_smoothing=True,
+            fps=30.0,
+            cutoff_hz=0.75
         )
 
         # normalize in case numpy floats come back

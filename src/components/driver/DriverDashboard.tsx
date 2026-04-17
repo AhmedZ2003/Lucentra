@@ -4,7 +4,6 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, Activity, AlertTriangle, Info, Loader2, FileVideo, X, Download, ChevronDown } from "lucide-react";
 import { useState, useRef } from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import VideoPlayer from "@/components/driver/VideoPlayer"; 
 import EventTriggersChart from "@/components/driver/EventTriggersChart"; 
 import { useAuth } from "@/hooks/useAuth";
 import { db } from "@/integrations/FireBase/firebase"; 
@@ -411,10 +410,24 @@ const VideoUpload = ({ onUpload }: { onUpload: (file: File) => void }) => {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files; if (files && files.length > 0) setSelectedFile(files[0]);
+    const files = e.target.files;
+    console.log("handleFileSelect fired", files);
+    if (files && files.length > 0){
+      console.log("selected file:", files[0].name, files[0].size, files[0].type);
+      setSelectedFile(files[0]);
+    }
   };
 
-  const handleUpload = () => { if (selectedFile) onUpload(selectedFile); };
+  const handleUpload = () => { 
+    console.log("handleUpload fired");
+    console.log("selectedFile in handleUpload:", selectedFile);
+    if (selectedFile) {
+      onUpload(selectedFile); 
+    }
+      else {
+      console.warn("No selectedFile found when upload button clicked");
+    }
+    };
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
@@ -556,6 +569,22 @@ const DriverDashboard = () => {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);            //States to download Speed Data
   const [isEventDownloadModalOpen, setIsEventDownloadModalOpen] = useState(false);  //States to download Event Data
   const [processedVideoUrl, setProcessedVideoUrl] = useState<string>("");
+  const [currentFrame, setCurrentFrame] = useState<number>(0);
+  const [currentSpeed, setCurrentSpeed] = useState<number | null>(null);
+  const [videoFPS, setVideoFPS] = useState<number>(30);
+  const [analysisProgress, setAnalysisProgress] = useState(0);
+  const progressTimeoutsRef = useRef<number[]>([]);
+  const [activeEvent, setActiveEvent] = useState<{
+  event: string;
+  time: number;
+  duration: number;
+  severity: "low" | "medium" | "high";
+} | null>(null);
+
+  const driverVideoRef = useRef<HTMLVideoElement | null>(null);
+  const DRIVER_VIDEO_FPS = videoFPS || 30;
+
+
   // const [dangerEvents, setDangerEvents] = useState<(string | null)[]>([]);
   const [dangerEvents, setDangerEvents] = useState<
     { event: string; time: number; duration: number; severity: "low" | "medium" | "high" }[]
@@ -575,6 +604,13 @@ const DriverDashboard = () => {
     return { avg: avg.toFixed(2), max: max.toFixed(2), min: min.toFixed(2) };
   };
   const stats = calculateStats();
+
+  const validDangerEvents = dangerEvents.filter(
+    (item) =>
+      item &&
+      item.event &&
+      !["none", "null", "undefined", ""].includes(String(item.event).trim().toLowerCase())
+  );
 
   const normalizeDangerEvents = (
       events: any[],
@@ -619,7 +655,120 @@ const DriverDashboard = () => {
         return top ? top[0] : "N/A";
       };
 
+      const handleDriverVideoTimeUpdate = () => {
+        const video = driverVideoRef.current;
+        if (!video || speedData.length === 0) return;
+
+        const frameNumber = Math.round(video.currentTime * DRIVER_VIDEO_FPS);
+        setCurrentFrame(frameNumber);
+
+        const exact = speedData.find((d) => d.frame === frameNumber);
+        if (exact) {
+          setCurrentSpeed(exact.speed);
+        } else {
+          const closest = speedData.reduce((prev, curr) =>
+            Math.abs(curr.frame - frameNumber) < Math.abs(prev.frame - frameNumber) ? curr : prev
+          );
+          setCurrentSpeed(closest?.speed ?? null);
+        }
+
+        const matchedEvent = dangerEvents.find((evt) => {
+          const start = evt.time ?? 0;
+          const end = start + (evt.duration ?? 1);
+          return frameNumber >= start && frameNumber <= end;
+        });
+
+        setActiveEvent(matchedEvent || null);
+    };
+
+    const getActualVideoFPS = (file: File): Promise<number> => {
+        return new Promise((resolve) => {
+          const tempVideo = document.createElement("video");
+          const tempUrl = URL.createObjectURL(file);
+
+          tempVideo.preload = "metadata";
+          tempVideo.src = tempUrl;
+          tempVideo.muted = true;
+
+          tempVideo.onloadedmetadata = async () => {
+            try {
+              // Best browser-side fallback:
+              // use duration + known analyzed frame count later if needed.
+              // Since raw FPS is not reliably exposed by HTML video, return a provisional value for now.
+              // We'll improve it after speed analysis by recomputing from frame count / duration.
+              resolve(30);
+            } catch {
+              resolve(30);
+            } finally {
+              URL.revokeObjectURL(tempUrl);
+            }
+          };
+
+          tempVideo.onerror = () => {
+            URL.revokeObjectURL(tempUrl);
+            resolve(30);
+          };
+        });
+      };
+
+      const getVideoDurationFromFile = (file: File): Promise<number> => {
+          return new Promise((resolve, reject) => {
+            const tempVideo = document.createElement("video");
+            const tempUrl = URL.createObjectURL(file);
+
+            tempVideo.preload = "metadata";
+            tempVideo.src = tempUrl;
+
+            tempVideo.onloadedmetadata = () => {
+              const duration = tempVideo.duration;
+              URL.revokeObjectURL(tempUrl);
+              resolve(duration || 0);
+            };
+
+            tempVideo.onerror = () => {
+              URL.revokeObjectURL(tempUrl);
+              reject(new Error("Failed to read video duration"));
+            };
+          });
+        };
+
+      const clearProgressTimers = () => {
+        progressTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+        progressTimeoutsRef.current = [];
+      };
+
+      const startFakeProgress = () => {
+        clearProgressTimers();
+        setAnalysisProgress(0);
+
+        progressTimeoutsRef.current.push(
+          window.setTimeout(() => {
+            setAnalysisProgress((prev) => (prev < 25 ? 25 : prev));
+          }, 30_000)
+        );
+
+        progressTimeoutsRef.current.push(
+          window.setTimeout(() => {
+            setAnalysisProgress((prev) => (prev < 75 ? 75 : prev));
+          }, 60_000)
+        );
+
+        progressTimeoutsRef.current.push(
+          window.setTimeout(() => {
+            setAnalysisProgress((prev) => (prev < 90 ? 90 : prev));
+          }, 90_000)
+        );
+      };
+
+      const completeProgress = () => {
+        clearProgressTimers();
+        setAnalysisProgress(100);
+      };
+      
   const handleVideoUpload = async (file: File) => {
+    console.log("handleVideoUpload fired", file?.name);
+    console.time("total-upload-flow");
+
     setHasUploadedVideo(true);
     setError(""); setFormatNotice("");
     setUploadedVideoFile(file);
@@ -629,6 +778,8 @@ const DriverDashboard = () => {
     setIsDangerComplete(false);
     setProcessedVideoUrl("");
     setDangerEvents([]);
+    setAnalysisProgress(0);
+    startFakeProgress();
 
     // /* =========================
     //    Helpers (format detection)
@@ -676,24 +827,17 @@ const DriverDashboard = () => {
     formData.append("upload_preset", "Car Footage"); // Replace with your upload preset
 
     try {
-      // FLEXINET
-      // const response = await fetch("http://localhost:8000/api/predict-video-speeds", {
-      // method: "POST",
-      // body: formData,
-      // });
 
+      console.time("total-upload-flow");
 
-      // CONV-LSTM
-      // const response = await fetch("http://localhost:5000/api/analyze-video", {
-      //   method: "POST",
-      //   body: formData,
-      // });
+      console.time("cloudinary-upload");
 
       // ORIGINAL VIDEO UPLOAD TO CLOUDINARY!
       const cloudinaryRes = await fetch(`https://api.cloudinary.com/v1_1/dppbnxmov/video/upload`, {
       method: "POST",
       body: formData,
     });
+    console.timeEnd("cloudinary-upload");
 
       const cloudinaryData = await cloudinaryRes.json();
 
@@ -706,81 +850,15 @@ const DriverDashboard = () => {
       const publicId = cloudinaryData.public_id;
       setUploadedVideoUrl(uploadedVideoUrl);
 
-      // Optical Flow
-      // const response = await fetch("http://localhost:8000/api/analyze-video", {
-      //   method: "POST",
-      //   body: formData,
-      // });
-
-    //   const response = await fetch("http://localhost:8000/api/analyze-video", {
-    //   method: "POST",
-    //   body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
-    //   headers: { "Content-Type": "application/json" },
-    // });
-
-    //   if (!response.ok) {
-    //     throw new Error(`Server error: ${response.statusText}`);
-    //   }
-
-    //   const result = await response.json();
-
-    //   // Convert returned speeds[] -> chart data (force negatives to 0 & non-finite to 0)
-    //   const chartData = (result.speeds as number[]).map((speed, index) => ({
-    //     frame: index,
-    //     speed: Number(Math.max(0, Number.isFinite(speed) ? speed : 0).toFixed(2)),
-    //   }));
-
-    //   setSpeedData(chartData);
-    //   setAnalysisComplete(true);
-
-    // const response = await fetch("http://localhost:8000/api/analyze-video", {
-    //     method: "POST",
-    //     body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
-    //     headers: { "Content-Type": "application/json" },
-    //   });
-
-    //   if (!response.ok) {
-    //     throw new Error(`DPFlow server error: ${response.statusText}`);
-    //   }
-
-    //   const result = await response.json();
-
-    //   const chartData = (result.speeds as number[]).map((speed, index) => ({
-    //     frame: index,
-    //     speed: Number(Math.max(0, Number.isFinite(speed) ? speed : 0).toFixed(2)),
-    //   }));
-
-    //   setSpeedData(chartData);
-    //   setIsDpflowComplete(true);
-
-    // // Now call danger detection after DPFlow is done
-    //   const dangerResponse = await fetch("http://localhost:8001/api/detect-danger", {
-    //     method: "POST",
-    //     body: JSON.stringify({
-    //       videoUrl: uploadedVideoUrl,
-    //       frameWeights: chartData.map((d) => d.speed),
-    //     }),
-    //     headers: { "Content-Type": "application/json" },
-    //   });
-
-    //   if (!dangerResponse.ok) {
-    //     throw new Error(`Danger detection server error: ${dangerResponse.statusText}`);
-    //   }
-
-    //   const dangerResult = await dangerResponse.json();
-
-      // const dpflowPromise = fetch("http://localhost:8000/api/analyze-video", {
-      //   method: "POST",
-      //   body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
-      //   headers: { "Content-Type": "application/json" },
-      // });
-
+      // Optical Flow and Danger Detection in parallel
+      console.time("speed-api");
       const speedPromise = fetch("http://localhost:8000/api/analyze-video", {
         method: "POST",
         body: JSON.stringify({ videoUrl: uploadedVideoUrl }),
         headers: { "Content-Type": "application/json" },
       });
 
+      console.time("danger-api");
       const dangerPromise = fetch("http://localhost:8001/api/detect-danger", {
         method: "POST",
         body: JSON.stringify({
@@ -790,6 +868,10 @@ const DriverDashboard = () => {
       });
 
       const [speedResponse, dangerResponse] = await Promise.all([speedPromise, dangerPromise]);
+
+      console.timeEnd("speed-api");
+      console.timeEnd("danger-api");
+      console.timeEnd("total-upload-flow");
 
       if (!speedResponse.ok) {
         throw new Error(`Speed server error: ${speedResponse.statusText}`);
@@ -804,22 +886,49 @@ const DriverDashboard = () => {
         dangerResponse.json(),
       ]);
 
+      console.log("Speed Result:", speedResult);
+      console.log("Danger Result:", dangerResult);
+
       const chartData = (speedResult.speeds as number[]).map((speed, index) => ({
         frame: index,
         speed: Number(Math.max(0, Number.isFinite(speed) ? speed : 0).toFixed(2)),
       }));
+      console.log("Processed chart data:", chartData);
+
+      let actualFPS = 30;
+
+      try {
+        const duration = await getVideoDurationFromFile(file);
+        const totalFrames = chartData.length;
+
+        if (duration > 0 && totalFrames > 0) {
+          actualFPS = totalFrames / duration;
+        }
+      } catch (e) {
+        console.warn("Could not determine actual FPS from uploaded video duration. Falling back to 30.");
+      }
+
+      console.log("Determined video FPS:", actualFPS);
+
+      setVideoFPS(actualFPS);
 
       setSpeedData(chartData);
       setIsDpflowComplete(true);
+      console.log("DPFlow analysis complete!");
 
       const normalizedEvents = normalizeDangerEvents(dangerResult.events || []);
+      
 
       setProcessedVideoUrl(dangerResult.annotatedVideoUrl || uploadedVideoUrl);
       setDangerEvents(normalizedEvents);
       setIsDangerComplete(true);
+      console.log("Danger detection complete!");
 
+      completeProgress();
       // Final UI should appear only when both are done
       setAnalysisComplete(true);
+
+      console.log("Analysis Complete!!!");
 
       // Save to Firestore after analysis complete
       if (profileName && user?.uid) {
@@ -832,11 +941,15 @@ const DriverDashboard = () => {
         annotatedVideoPublicId: dangerResult.annotatedVideoPublicId || "",
         speedData: chartData,
         dangerEvents: normalizedEvents,
+        videoFPS: actualFPS,
         updatedAt: new Date().toISOString(),
       });
     }
 
+    console.log("Uploaded to firebase");
+
     } catch (err) {
+      clearProgressTimers();
       console.error("Error uploading video:", err);
       setError(err instanceof Error ? err.message : "Failed to analyze video");
 
@@ -847,6 +960,7 @@ const DriverDashboard = () => {
           speed: Math.max(0, Math.random() * 10 + 50),
         }));
         setSpeedData(mockData);
+        setAnalysisProgress(100);
         setAnalysisComplete(true);
       }, 2000);
     }
@@ -978,9 +1092,21 @@ const DriverDashboard = () => {
               </CardTitle>
               <CardDescription>Processing your video for speed analysis</CardDescription>
             </CardHeader>
-            <CardContent>
+            {/* <CardContent>
               <BufferIndicator />
-            </CardContent>
+            </CardContent> */}
+
+            <CardContent className="space-y-4">
+                <BufferIndicator />
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Processing progress</span>
+                    <span className="font-medium text-card-foreground">{analysisProgress}%</span>
+                  </div>
+                  <Progress value={analysisProgress} className="h-3" />
+                </div>
+              </CardContent>
           </Card>
         )}
 
@@ -1012,12 +1138,57 @@ const DriverDashboard = () => {
               </CardContent>
             </Card>
 
-            {/* <VideoPlayer videoUrl={uploadedVideoUrl} videoFile={uploadedVideoFile} speedData={speedData} /> */}
-            <VideoPlayer
-              videoUrl={processedVideoUrl || uploadedVideoUrl}
-              videoFile={null}
-              speedData={speedData}
-            />
+            <Card className="bg-card border-border overflow-hidden">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-card-foreground">
+                    <Activity className="h-5 w-5 text-primary" />
+                    Journey Playback
+                  </CardTitle>
+                  <CardDescription>
+                    Live speed overlay and event popup
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent>
+                  <div className="relative overflow-hidden rounded-xl bg-black">
+                    <video
+                      ref={driverVideoRef}
+                      className="w-full max-h-[560px] object-cover"
+                      controls
+                      onTimeUpdate={handleDriverVideoTimeUpdate}
+                    >
+                      <source src={processedVideoUrl || uploadedVideoUrl} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+
+                    {/* Speed badge - top left */}
+                    {currentSpeed !== null && (
+                      <div className="absolute left-4 top-4 z-20 rounded-md bg-slate-800/85 px-4 py-2 text-white shadow-lg backdrop-blur-sm border border-white/10">
+                        <div className="text-3xl font-bold leading-none">
+                          {Math.round(currentSpeed)}
+                        </div>
+                        <div className="mt-1 text-[11px] uppercase tracking-wide text-white/80">
+                          (m/s)
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Event popup - top center */}
+                    {activeEvent && (
+                      <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
+                        <div className="flex items-center gap-2 rounded-full border border-pink-400/30 bg-slate-800/90 px-4 py-2 text-white shadow-xl backdrop-blur-sm">
+                          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-bold">
+                            !
+                          </span>
+                          <span className="text-sm font-medium">
+                            {activeEvent.event}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             
 
             <Card className="bg-card border-border">
@@ -1030,6 +1201,7 @@ const DriverDashboard = () => {
                         </CardTitle>
                         <CardDescription>Detected danger events across the video timeline</CardDescription>
                       </div>
+                      {validDangerEvents.length > 0 && (
                       <Button
                         variant="outline"
                         onClick={() => setIsEventDownloadModalOpen(true)}
@@ -1038,12 +1210,13 @@ const DriverDashboard = () => {
                         <Download className="h-4 w-4" />
                         Download Events
                       </Button>
+                      )}
                     </div>
                   </CardHeader>
               <CardContent>
                 <EventTriggersChart
-                    data={dangerEvents}
-                    fps={30}
+                    data={validDangerEvents}
+                    fps={videoFPS || 30}
                     framesToShow={Math.max(speedData.length, 1)}
                   />
               </CardContent>

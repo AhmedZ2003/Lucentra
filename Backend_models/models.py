@@ -7,8 +7,10 @@ import numpy as np
 from torchvision import transforms
 import ptlflow
 from ptlflow.utils import flow_utils
-from utils import preprocess, apply_threshold_ema_smoothing, apply_ema_gaussian_smoothing, apply_ema_smoothing, apply_gaussian_smoothing
+from utils import preprocess, apply_threshold_ema_smoothing, apply_ema_gaussian_smoothing, apply_ema_smoothing, apply_gaussian_smoothing, apply_kalman_smoothing, apply_butterworth_filter
+from ptlflow.utils.io_adapter import IOAdapter
 from tqdm import tqdm
+
 
 class EfficientNetV2TinyModel(nn.Module):
     def __init__(self, pretrained=True, dropout_rate=0.1):
@@ -28,7 +30,7 @@ class EfficientNetV2TinyModel(nn.Module):
         return output
 
 
-def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', alpha=0.3, threshold=2.0, sigma=1.0, smoothing_type="ema_threshold", use_smoothing=True):
+def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', alpha=0.3, threshold=2.0, sigma=1.0, smoothing_type="ema_threshold", use_smoothing=True, fps=30.0, cutoff_hz=1.0):
     """
     model_name: 'fastflownet' or 'dpflow'
     Types of smoothing:
@@ -78,23 +80,40 @@ def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', al
                     break
 
                 # Preprocess frames for flow
-                img1 = preprocess(prev_frame)
-                img2 = preprocess(curr_frame)
+                img1 = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2RGB)
+                img2 = cv2.cvtColor(curr_frame, cv2.COLOR_BGR2RGB)
+                
+                # 2. CRITICAL: Use IOAdapter to automatically handle tensor formatting & padding
+                io_adapter = IOAdapter(flow_model, img1.shape[:2])
+                inputs = io_adapter.prepare_inputs([img1, img2])
+                
+                # Safely move the prepared inputs to your GPU/CPU
+                inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
-                # Convert to tensor
-                imgs = np.stack([img1, img2], axis=0)
-                imgs = torch.from_numpy(imgs).permute(0, 3, 1, 2).float().unsqueeze(0).to(device)
-
-                # Compute optical flow
-                pred = flow_model({"images": imgs})
+                pred = flow_model(inputs)
+                    
+                # 3. Unpad the prediction so it matches your original image dimensions
+                pred = io_adapter.unscale(pred)
                 flow = pred['flows'][0, 0].cpu()
 
-                # Convert flow to RGB
+                flow = torch.clamp(flow, min=-150.0, max=150.0)
+
+                # Normalized Flow using Tensor Input
                 flow_rgb = flow_utils.flow_to_rgb(flow, background='dark').permute(1, 2, 0).numpy()
-                flow_rgb = cv2.resize(flow_rgb, (224, 224))
                 
                 # Preprocess flow for speed model
-                flow_tensor = transform(flow_rgb).unsqueeze(0).to(device)
+                # 1. Use EXACT same resizer as Training (cv2 instead of PyTorch transform)
+                flow_rgb = cv2.resize(flow_rgb, (224, 224))
+
+                # 2. Simulate the exact plt.imsave -> plt.imread 8-bit PNG quantization sequence from dataloader
+                flow_rgb = np.clip(flow_rgb, 0.0, 1.0)
+                flow_rgb = (flow_rgb * 255.0).astype(np.uint8).astype(np.float32) / 255.0
+
+                # 3. Just use PyTorch to format shape (H,W,C -> C,H,W) like your PreprocessedSpeedDataset
+                flow_tensor = transforms.ToTensor()(flow_rgb).to(device)
+
+                # add .unsqueeze(0) to match batch shape
+                flow_tensor = flow_tensor.unsqueeze(0) 
                 
                 # Predict speed
                 speed_pred = speed_model(flow_tensor).item()
@@ -105,9 +124,9 @@ def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', al
                 # Update previous frame
                 prev_frame = curr_frame
 
+
     else:
-        print("Using FastFlowNet model for optical flow estimation.")
-        from ptlflow.utils.io_adapter import IOAdapter
+        print("Using FastFlowNet model for optical flow estimation. Sequential")
         with torch.no_grad():
             while True:
                 ret, curr_frame = cap.read()
@@ -161,6 +180,10 @@ def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', al
             speeds = apply_ema_smoothing(speeds, alpha=alpha)
         elif smoothing_type == "gaussian":
             speeds = apply_gaussian_smoothing(speeds, sigma=sigma)
+        elif smoothing_type == 'kalman':
+            speeds = apply_kalman_smoothing(speeds, process_noise=0.1, measurement_noise=5.0, apply_gaussian=True, sigma=sigma)
+        elif smoothing_type == 'butterworth':
+            speeds = apply_butterworth_filter(speeds, fps=fps, cutoff_hz=cutoff_hz)
 
     # if any speed value is negative, set it to zero
     speeds = [max(0.0, s) for s in speeds]
@@ -168,7 +191,7 @@ def get_speeds_from_video(video_path, weights_path, model_name='fastflownet', al
     return speeds
 
 
-def get_speeds_from_video_batch_process(video_path, weights_path, model_name='fastflownet', alpha=0.3, threshold=2.0, sigma=1.0, smoothing_type="ema_threshold", use_smoothing=True):
+def get_speeds_from_video_batch_process(video_path, weights_path, model_name='fastflownet', alpha=0.3, threshold=2.0, sigma=1.0, smoothing_type="ema_threshold", use_smoothing=True, fps=30.0, cutoff_hz=1.0):
     """
     model_name: 'fastflownet' or 'dpflow'
     Types of smoothing:
@@ -220,21 +243,43 @@ def get_speeds_from_video_batch_process(video_path, weights_path, model_name='fa
         if model_name == 'dpflow':
             print("Using DPFlow model for optical flow estimation (Batch).")
             for i in tqdm(range(len(frames) - 1), desc="Processing Video", unit="pair"):
-                img1 = preprocess(frames[i])
-                img2 = preprocess(frames[i + 1])
+                # Preprocess frames for flow
+                img1 = cv2.cvtColor(frames[i], cv2.COLOR_BGR2RGB)
+                img2 = cv2.cvtColor(frames[i + 1], cv2.COLOR_BGR2RGB)
+                
+                # IOAdapter handles tensor formatting & padding
+                io_adapter = IOAdapter(flow_model, img1.shape[:2])
+                inputs = io_adapter.prepare_inputs([img1, img2])
+                
+                # Move to GPU/CPU
+                inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
-                imgs = np.stack([img1, img2], axis=0)
-                imgs = torch.from_numpy(imgs).permute(0, 3, 1, 2).float().unsqueeze(0).to(device)
-                
-                pred = flow_model({"images": imgs})
+                pred = flow_model(inputs)
+                    
+                # Unpad the prediction
+                pred = io_adapter.unscale(pred)
                 flow = pred['flows'][0, 0].cpu()
-                
+
+                flow = torch.clamp(flow, min=-150.0, max=150.0)
+
+                # Normalized Flow using Tensor Input
                 flow_rgb = flow_utils.flow_to_rgb(flow, background='dark').permute(1, 2, 0).numpy()
-                flow_tensor = transform(flow_rgb).to(device)
+                
+                # 1. Use EXACT same resizer as Training (cv2 instead of PyTorch transform)
+                flow_rgb = cv2.resize(flow_rgb, (224, 224))
+
+                # 2. Simulate the exact plt.imsave -> plt.imread 8-bit PNG quantization sequence from dataloader
+                flow_rgb = np.clip(flow_rgb, 0.0, 1.0)
+                flow_rgb = (flow_rgb * 255.0).astype(np.uint8).astype(np.float32) / 255.0
+
+                # 3. Just use PyTorch to format shape (H,W,C -> C,H,W) like your PreprocessedSpeedDataset
+                flow_tensor = transforms.ToTensor()(flow_rgb).to(device)
+
+
+
                 flow_tensors.append(flow_tensor)
         else:
             print("Using FastFlowNet model for optical flow estimation (Batch).")
-            from ptlflow.utils.io_adapter import IOAdapter
             for i in tqdm(range(len(frames) - 1), desc="Processing Video", unit="pair"):
                 # Preprocess frames for flow
                 img1 = cv2.cvtColor(frames[i], cv2.COLOR_BGR2RGB)
@@ -283,6 +328,10 @@ def get_speeds_from_video_batch_process(video_path, weights_path, model_name='fa
             speeds = apply_ema_smoothing(speeds, alpha=alpha)
         elif smoothing_type == "gaussian":
             speeds = apply_gaussian_smoothing(speeds, sigma=sigma)
+        elif smoothing_type == 'kalman':
+            speeds = apply_kalman_smoothing(speeds, process_noise=0.1, measurement_noise=5.0, apply_gaussian=True, sigma=sigma)
+        elif smoothing_type == 'butterworth':
+            speeds = apply_butterworth_filter(speeds, fps=fps, cutoff_hz=cutoff_hz)
 
     # if any speed value is negative, set it to zero
     speeds = [max(0.0, s) for s in speeds]
@@ -295,6 +344,7 @@ if __name__ == "__main__":
 
     # * Path settings
     video_path = r"D:\D-Documents\Self-Improvement\Python\Computer_Vision\Speed Estimation\Speed_Estimation_Cleaned\Dataset\Processed\Train\videos\2011_09_26_drive_0029_sync.mp4"
+    # video_path = r"D:\D-Documents\Self-Improvement\Python\Computer_Vision\Speed Estimation\Speed_Estimation_FYP_Cleaned\Speed_Estimation_Module_Lucentra\videos\stuttgart_01_demo_video.mp4"
     weights_path = r'D:\D-Documents\Self-Improvement\Python\Computer_Vision\Speed Estimation\Speed_Estimation_FYP_Cleaned\Speed_Estimation_Module_Lucentra\weights'
 
     # * Model settings
@@ -304,13 +354,15 @@ if __name__ == "__main__":
     alpha = 0.5 # 0.3 - 0.5 works well
     threshold = 2.0
     sigma = 4.5  # 4-5 gives good smoothing
-    smoothing_type = "ema_gaussian"  # Choose from: "ema_threshold", "ema_gaussian", "ema", "gaussian"
+    fps=30.0
+    cutoff_hz=1.0
+    smoothing_type = "butterworth"  # Choose from: "ema_threshold", "ema_gaussian", "ema", "gaussian"
     
     # * For single processing
-    # speeds  = get_speeds_from_video(video_path, weights_path, model_name=model_name, alpha=alpha, threshold=threshold, sigma=sigma, smoothing_type=smoothing_type, use_smoothing=True)
+    # speeds  = get_speeds_from_video(video_path, weights_path, model_name=model_name, alpha=alpha, threshold=threshold, sigma=sigma, smoothing_type=smoothing_type, use_smoothing=True, fps=30.0, cutoff_hz=1.0)
 
     # * For batch processing, Can be Faster for long videos
-    speeds  = get_speeds_from_video_batch_process(video_path, weights_path, model_name=model_name, alpha=alpha, threshold=threshold, sigma=sigma, smoothing_type=smoothing_type, use_smoothing=True)
+    speeds  = get_speeds_from_video_batch_process(video_path, weights_path, model_name=model_name, alpha=alpha, threshold=threshold, sigma=sigma, smoothing_type=smoothing_type, use_smoothing=True, fps=30.0, cutoff_hz=1.0)
 
 
 

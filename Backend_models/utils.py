@@ -1,5 +1,41 @@
 import cv2
 from scipy.ndimage import gaussian_filter1d
+from filterpy.kalman import KalmanFilter
+import numpy as np
+from scipy.signal import butter, filtfilt
+
+
+def apply_butterworth_filter(speeds, fps=30.0, cutoff_hz=0.5):
+    # Cutoff of 0.5Hz means changes faster than 2 seconds are smoothed out
+    nyq = 0.5 * fps
+    normal_cutoff = cutoff_hz / nyq
+    b, a = butter(2, normal_cutoff, btype='low', analog=False)
+    # filtfilt applies the filter forward and backward so it doesn't delay/lag the graph
+    smoothed = filtfilt(b, a, speeds)
+    return smoothed.tolist()
+
+
+
+def apply_kalman_smoothing(speeds, process_noise=0.1, measurement_noise=1.0, apply_gaussian=False, sigma=1.0):
+    kf = KalmanFilter(dim_x=1, dim_z=1)
+    kf.x = np.array([speeds[0]])
+    kf.F = np.array([[1.]])  # Assumes constant speed; add acceleration if needed
+    kf.H = np.array([[1.]])
+    kf.P *= 1.0
+    kf.R = measurement_noise  # Tune: higher for noisy predictions
+    kf.Q = process_noise  # Tune: lower for stable data
+
+    smoothed = []
+    for speed in speeds:
+        kf.predict()
+        kf.update(speed)
+        smoothed.append(kf.x[0])
+
+    if apply_gaussian:
+        smoothed = gaussian_filter1d(smoothed, sigma=sigma)
+
+    return smoothed
+
 
 
 def preprocess(img, gamma=1.5, size=(224, 224)):

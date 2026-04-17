@@ -397,6 +397,13 @@ const FleetManagerDashboard = () => {
     { event: string; time: number; duration: number; severity: "low" | "medium" | "high" }[]
   >([]);
 
+  const [activeEvent, setActiveEvent] = useState<{
+  event: string;
+  time: number;
+  duration: number;
+  severity: "low" | "medium" | "high";
+    } | null>(null);
+
   const calculateStats = () => {
     if (driverSpeedData.length === 0) return { avg: 0, max: 0, min: 0 };
     const speeds = driverSpeedData.map(d => Math.max(0, d.speed));
@@ -408,6 +415,13 @@ const FleetManagerDashboard = () => {
   const stats = calculateStats();
 
   const { profileName } = useAuth();
+
+  const validDriverDangerEvents = driverDangerEvents.filter(
+  (item) =>
+    item &&
+    item.event &&
+    !["none", "null", "undefined", ""].includes(String(item.event).trim().toLowerCase())
+);
 
   // Fetch Driver's Processed Annotated Video
   const getDriverVideoUrl = (driver: DriverRecord) => {
@@ -441,52 +455,6 @@ const FleetManagerDashboard = () => {
 
     fetchDrivers();
   }, []);
-
-  // Fetch the selected driver's speed and event data
-  // const fetchDriverSpeedData = async (driverId: string) => {
-  //     try {
-  //       setLoading(true);
-  //       const driverRef = doc(db, "driverSpeeds", driverId);
-  //       const driverDoc = await getDoc(driverRef);
-
-  //       if (driverDoc.exists()) {
-  //         const data = driverDoc.data();
-
-  //         if (data && Array.isArray(data.speedData)) {
-  //           const speedData = data.speedData.map((entry: { frame: number; speed: number }) => ({
-  //             time: entry.frame,
-  //             speed: entry.speed,
-  //           }));
-  //           setDriverSpeedData(speedData);
-  //         } else {
-  //           setDriverSpeedData([]);
-  //           console.error("No speed data found for this driver.");
-  //         }
-
-  //         if (data && Array.isArray(data.dangerEvents)) {
-  //           const cleanedEvents = data.dangerEvents.filter(
-  //             (item: any) =>
-  //               item &&
-  //               item.event &&
-  //               !["none", "null", "undefined"].includes(String(item.event).trim().toLowerCase())
-  //           );
-  //           setDriverDangerEvents(cleanedEvents);
-  //         } else {
-  //           setDriverDangerEvents([]);
-  //         }
-  //       } else {
-  //         setDriverSpeedData([]);
-  //         setDriverDangerEvents([]);
-  //         console.error("Driver not found or has no speed data.");
-  //       }
-  //     } catch (err) {
-  //       console.error("Error fetching driver speed data:", err);
-  //       setDriverSpeedData([]);
-  //       setDriverDangerEvents([]);
-  //     } finally {
-  //       setLoading(false);
-  //     }
-  //   };
 
   const fetchDriverSpeedData = async (driverId: string) => {
       try {
@@ -570,14 +538,14 @@ const FleetManagerDashboard = () => {
     }
   }, [selectedDriver, driverSpeedData]);
 
-  // Render the driver's details and the speed chart
-  const handleViewDetails = (driver: DriverRecord) => {
-      setSelectedDriver(driver);
-      setDriverSpeedData([]);
-      setDriverDangerEvents([]);
-      setCurrentSpeed(null);
-      fetchDriverSpeedData(driver.id);
-    };
+    const handleViewDetails = (driver: DriverRecord) => {
+    setSelectedDriver(driver);
+    setDriverSpeedData([]);
+    setDriverDangerEvents([]);
+    setCurrentSpeed(null);
+    setActiveEvent(null);
+    fetchDriverSpeedData(driver.id);
+  };
 
   // Show video and speed chart for selected driver
   const renderDriverDetails = () => {
@@ -589,20 +557,40 @@ const FleetManagerDashboard = () => {
               <CardTitle className="text-card-foreground">Driver Details</CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Video Display */}
-              <div className="relative mt-4">
+              <div className="relative mt-4 overflow-hidden rounded-xl bg-black">
                 <video
                   id="driver-video"
-                  width="100%"
+                  className="w-full max-h-[560px] object-cover"
                   controls
                   onTimeUpdate={handleTimeUpdate}
                 >
                   <source src={getDriverVideoUrl(selectedDriver)} type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
+
+                {/* Speed badge - top left */}
                 {currentSpeed !== null && (
-                  <div className="absolute top-4 left-4 bg-background/80 text-foreground px-3 py-1 rounded-md text-sm shadow-md">
-                    Speed: {currentSpeed.toFixed(2)} ms
+                  <div className="absolute left-4 top-4 z-20 rounded-md bg-slate-800/85 px-4 py-2 text-white shadow-lg backdrop-blur-sm border border-white/10">
+                    <div className="text-3xl font-bold leading-none">
+                      {Math.round(currentSpeed)}
+                    </div>
+                    <div className="mt-1 text-[11px] uppercase tracking-wide text-white/80">
+                      (m/s)
+                    </div>
+                  </div>
+                )}
+
+                {/* Event popup - top center */}
+                {activeEvent && (
+                  <div className="absolute left-1/2 top-4 z-20 -translate-x-1/2">
+                    <div className="flex items-center gap-2 rounded-full border border-pink-400/30 bg-slate-800/90 px-4 py-2 text-white shadow-xl backdrop-blur-sm">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-xs font-bold">
+                        !
+                      </span>
+                      <span className="text-sm font-medium">
+                        {activeEvent.event}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -615,27 +603,34 @@ const FleetManagerDashboard = () => {
   };
 
   // Track video time and calculate the corresponding speed
-  const handleTimeUpdate = () => {
+
+    const handleTimeUpdate = () => {
     const video = document.getElementById("driver-video") as HTMLVideoElement;
     if (!video || driverSpeedData.length === 0) return;
 
     const currentTime = video.currentTime;
-    
-    // Calculate frame number more accurately using round instead of floor
     const frameNumber = Math.round(currentTime * videoFPS);
-    
-    // Find the matching speed data entry
-    const matchingData = driverSpeedData.find(d => d.time === frameNumber);
-    
+
+    const matchingData = driverSpeedData.find((d) => d.time === frameNumber);
+
     if (matchingData) {
       setCurrentSpeed(matchingData.speed);
     } else {
-      // If exact match not found, find closest frame
       const closestData = driverSpeedData.reduce((prev, curr) => {
-        return Math.abs(curr.time - frameNumber) < Math.abs(prev.time - frameNumber) ? curr : prev;
+        return Math.abs(curr.time - frameNumber) < Math.abs(prev.time - frameNumber)
+          ? curr
+          : prev;
       });
       setCurrentSpeed(closestData.speed);
     }
+
+    const matchedEvent = driverDangerEvents.find((evt) => {
+      const start = evt.time ?? 0;
+      const end = start + (evt.duration ?? 1);
+      return frameNumber >= start && frameNumber <= end;
+    });
+
+    setActiveEvent(matchedEvent || null);
   };
 
   if (loading) {
@@ -655,7 +650,7 @@ const FleetManagerDashboard = () => {
         driverName={selectedDriver?.name || "driver"}
       />
       <DownloadEventsModal
-      eventData={driverDangerEvents}
+      eventData={validDriverDangerEvents}
       isOpen={isEventDownloadModalOpen}
       onClose={() => setIsEventDownloadModalOpen(false)}
       driverName={selectedDriver?.name || "driver"}
@@ -814,6 +809,7 @@ const FleetManagerDashboard = () => {
               </CardTitle>
               <CardDescription>Detected danger events across the video timeline</CardDescription>
             </div>
+            {validDriverDangerEvents.length > 0 && (
             <Button
               variant="outline"
               onClick={() => setIsEventDownloadModalOpen(true)}
@@ -822,11 +818,12 @@ const FleetManagerDashboard = () => {
               <Download className="h-4 w-4" />
               Download Events
             </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
           <EventTriggersChart
-            data={driverDangerEvents}
+            data={validDriverDangerEvents}
             fps={videoFPS || 30}
             framesToShow={Math.max(driverSpeedData.length, 1)}
           />

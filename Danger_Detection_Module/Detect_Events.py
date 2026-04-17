@@ -1,6 +1,7 @@
 import cv2
 from ultralytics import YOLO
 
+TARGET_OUTPUT_SIZE = (2048, 1024)  # (width, height)
 
 def compute_iou(box1, box2):
     """
@@ -63,14 +64,16 @@ def annotate_video(input_video_path, output_video_path, model_path, class_names,
     if not cap.isOpened():
         print(f"Error: Could not open video {input_video_path}")
         return
-    
-    # Get video properties
+
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    original_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    original_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    
-    print(f"Video properties: {width}x{height}, {fps} FPS, {total_frames} frames")
+
+    width, height = TARGET_OUTPUT_SIZE
+
+    print(f"Input video properties: {original_width}x{original_height}, {fps} FPS, {total_frames} frames")
+    print(f"Output video will be written at: {width}x{height}")
     
     if frame_weights is not None and len(frame_weights) != total_frames:
         print(f"Error: frame_weights length {len(frame_weights)} does not match total frames {total_frames}")
@@ -106,6 +109,8 @@ def annotate_video(input_video_path, output_video_path, model_path, class_names,
         ret, frame = cap.read()
         if not ret:
             break
+        
+        frame = cv2.resize(frame, TARGET_OUTPUT_SIZE, interpolation=cv2.INTER_LINEAR)
         
         # Run inference on the frame
         results = model(frame, conf=conf_threshold, verbose=False)
