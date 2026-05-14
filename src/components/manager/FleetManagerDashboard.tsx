@@ -436,6 +436,29 @@ const FleetManagerDashboard = () => {
     return driver.videoUrl;
   };
 
+  const downloadVideoFile = async (videoUrl: string, filename: string) => {
+        try {
+          const response = await fetch(videoUrl);
+          if (!response.ok) {
+            throw new Error("Failed to download video");
+          }
+
+          const blob = await response.blob();
+          const objectUrl = window.URL.createObjectURL(blob);
+
+          const link = document.createElement("a");
+          link.href = objectUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+
+          window.URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+          console.error("Video download failed:", error);
+        }
+      };
+
   // Fetch all driver speeds from Firestore
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -554,8 +577,26 @@ const FleetManagerDashboard = () => {
         <div className="mt-6 space-y-8">
           <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-card-foreground">Driver Details</CardTitle>
-            </CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-card-foreground">Driver Details</CardTitle>
+
+                    {selectedDriver && (
+                      <Button
+                        variant="outline"
+                        onClick={() =>
+                          downloadVideoFile(
+                            getDriverVideoUrl(selectedDriver),
+                            `${selectedDriver.name.replace(/\s+/g, "_")}_processed_video.mp4`
+                          )
+                        }
+                        className="flex items-center gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Video
+                      </Button>
+                    )}
+                  </div>
+                </CardHeader>
             <CardContent>
               <div className="relative mt-4 overflow-hidden rounded-xl bg-black">
                 <video

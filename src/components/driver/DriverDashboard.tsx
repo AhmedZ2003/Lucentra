@@ -681,6 +681,29 @@ const DriverDashboard = () => {
         setActiveEvent(matchedEvent || null);
     };
 
+    const downloadVideoFile = async (videoUrl: string, filename: string) => {
+        try {
+          const response = await fetch(videoUrl);
+          if (!response.ok) {
+            throw new Error("Failed to download video");
+          }
+
+          const blob = await response.blob();
+          const objectUrl = window.URL.createObjectURL(blob);
+
+          const link = document.createElement("a");
+          link.href = objectUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+
+          window.URL.revokeObjectURL(objectUrl);
+        } catch (error) {
+          console.error("Video download failed:", error);
+        }
+      };
+
     const getActualVideoFPS = (file: File): Promise<number> => {
         return new Promise((resolve) => {
           const tempVideo = document.createElement("video");
@@ -1140,14 +1163,34 @@ const DriverDashboard = () => {
 
             <Card className="bg-card border-border overflow-hidden">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-card-foreground">
-                    <Activity className="h-5 w-5 text-primary" />
-                    Journey Playback
-                  </CardTitle>
-                  <CardDescription>
-                    Live speed overlay and event popup
-                  </CardDescription>
-                </CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="flex items-center gap-2 text-card-foreground">
+                              <Activity className="h-5 w-5 text-primary" />
+                              Journey Playback
+                            </CardTitle>
+                            <CardDescription>
+                              Live speed overlay and event popup
+                            </CardDescription>
+                          </div>
+
+                          {(processedVideoUrl || uploadedVideoUrl) && (
+                            <Button
+                              variant="outline"
+                              onClick={() =>
+                                downloadVideoFile(
+                                  processedVideoUrl || uploadedVideoUrl,
+                                  "processed_journey_video.mp4"
+                                )
+                              }
+                              className="flex items-center gap-2"
+                            >
+                              <Download className="h-4 w-4" />
+                              Download Video
+                            </Button>
+                          )}
+                        </div>
+                      </CardHeader>
 
                 <CardContent>
                   <div className="relative overflow-hidden rounded-xl bg-black">
